@@ -179,6 +179,7 @@ class Lable(Element):
         self._new_txt = text
         self._text_suitable = False
         self._text_suitable_checked = False
+        self._cur_pos = 0
 
     def set_font(self, font):
         self._max_len = -1
@@ -277,6 +278,7 @@ class Lable(Element):
         if self._new_txt is not None:
             self.txt = self._new_txt
             self._new_txt = None
+            self._cur_pos = 0
         if self._new_font is not None:
             self.font = self._new_font
             self._new_font = None
@@ -293,6 +295,11 @@ class Lable(Element):
         t = self.txt
         if (not self._text_suitable or not self._text_suitable_checked) and not self.static_lable:
             t = self._get_string_to_show(canvas)
+            if self._cur_pos == 0:
+                self._cur_pos = max(len(t) - 5, 0)
+            else:
+                self._cur_pos += 2
+                
             if not self._text_suitable_checked:
                 if len(t) == len(self.txt):
                     self._text_suitable = True
@@ -300,8 +307,4 @@ class Lable(Element):
                     if not t.endswith("     "):
                         t += "     "
         canvas.text(sum_pos(gp, [self.margin, self.margin]), t, fill=self.textcolor, font = self.font)
-        if self._cur_pos == 0:
-            self._cur_pos = max(len(t) - 5, 0)
-        else:
-            self._cur_pos += 2
 
