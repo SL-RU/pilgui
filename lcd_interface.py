@@ -104,7 +104,6 @@ class Element(object):
         print("empty draw: " + self.id)
         
     def draw_children(self, canvas):
-        print(self.id + " drawing children")    
         for i in self.children:
             i.draw(canvas)
 
@@ -127,11 +126,12 @@ class RootElement(Element):
 
 
 class Lable(Element):
-    def __init__(self, id, txt, size, gui, bgcolor=None, textcolor=1, outlinecolor=None, margin=1, font = None, lpos = [0,0], parent = None):
+    def __init__(self, id, txt, size, gui, bgcolor=None, textcolor=1, outlinecolor=None, margin=1, font = None, lpos = [0,0], parent = None, static_lable = False):
         """
         txt - text to show
         size - max size of element. If some dimension is -1, then it will be autosetted.
         font - ImageFont object
+        static_lable - if true - do not check text suitability and do not get running strip(much faster drawing)
         """
         self.id = id
         self.size = size
@@ -144,6 +144,7 @@ class Lable(Element):
         self.font = font
         self.margin = margin
         self.set_text(txt)
+        self.static_lable = static_lable
         if parent is not None:
             self.set_parent(parent)
         
@@ -158,21 +159,33 @@ class Lable(Element):
     font = None
     txt = ""
     margin = 1        #distance between border and text
-
+    static_lable = False #do not check text suitability and do not get running strip
+    
     _cur_pos = 0
     _max_len = -1
-    
+    _string_cache = dict()
+    _new_txt = None
+    _new_font = None
+    _text_suitable = False
+    _text_suitable_checked = False
 
     def set_size(self, size):
         self.size = size
         self._max_len = -1
+        self._text_suitable = False
+        self._text_suitable_checked = False
 
     def set_text(self, text):
-        self.txt = text + "     "
+        self._new_txt = text
+        self._text_suitable = False
+        self._text_suitable_checked = False
 
     def set_font(self, font):
         self._max_len = -1
-        self.font = font
+        self._string_cache = dict()
+        self._new_font = font
+        self._text_suitable = False
+        self._text_suitable_checked = False
 
     def _autoset_size(self, canvas):
         s = None
@@ -184,9 +197,17 @@ class Lable(Element):
                 s = canvas.textsize(self.txt, self.font)
             self.size[1] = s[1] + self.margin*2
 
-    def _get_string_to_show(self, canvas):
+    def _count_string_size(self, canvas, string):
+        if string in self._string_cache:
+            return self._string_cache[string]
+        else:
+            a = canvas.textsize(string, self.font)[0]
+            self._string_cache[string] = a
+            return a
+                
+    def _get_string_to_show_HIGH_LEVEL(self, canvas):
         """
-        THIS IS ARE VERY SLOW ALGORYTHM(but true). USE THE FUNCTION BELOW!
+        THIS IS ARE VERY SLOW ALGORYTHM(but it doesn't makes mistakes'). USE THE FUNCTION BELOW!
         Some strings are wider then label size. In that case label becoming an running strip. This function counts an string, that need show right now.
         """
         if len(self.txt) == 0:
@@ -199,7 +220,7 @@ class Lable(Element):
         d = True
         p = self._cur_pos
         tx = t
-        while canvas.textsize(t, self.font)[0] + self.margin*2 < self.size[0]:
+        while self._count_string_size(canvas, t) + self.margin*2 < self.size[0]:
             tx = t
             if(d):
                 if p - 1 >= 0:
@@ -215,21 +236,72 @@ class Lable(Element):
                 else:
                     return self.txt
         return tx
+
+    def _count_max_average_len(self, canvas):
+        char = "w"
+        t = char
+        tx = ""
+        while canvas.textsize(t, self.font)[0] + self.margin*2 < self.size[0]:
+            tx = t
+            t += char
+        return len(tx)
+            
+    def _get_string_to_show_LOW_LOVEL(self, canvas):
+        """
+        Some strings are wider then label size. In that case label becoming an running strip. This function counts an string, that need show right now.
+        """
+        if len(self.txt) == 0:
+            return " "
+        t = ""
+        if self._cur_pos >= 0 and self._cur_pos  < len(self.txt):
+            t += self.txt[self._cur_pos]
+        else:
+            self._cur_pos = 0
+
+        if self._max_len == -1:
+            self._max_len = self._count_max_average_len(canvas)
+
+        b = max(0, self._cur_pos - self._max_len)
+        print("b: " + str(b))
+        e = min(b + self._max_len, len(self.txt))
+        print("e: " + str(e))
+        t = self.txt[b:e]
+        return t
         
+    def _get_string_to_show(self, canvas):
+        """Here you need choose one of them"""    
+        return self._get_string_to_show_HIGH_LEVEL(canvas)
         
     def draw(self, canvas):
-        print("drawning lable: " + self.id)
+        #values can be changed from other thread
+        if self._new_txt is not None:
+            self.txt = self._new_txt
+            self._new_txt = None
+        if self._new_font is not None:
+            self.font = self._new_font
+            self._new_font = None
+
+        #count dimensions with -1 value
         if self.size[0] is -1 or self.size[1] is -1:
             self._autoset_size(canvas)
-            
+
+        #draw background and border
         gp = self.get_global_pos()
         if (self.bgcolor is not None or self.outlinecolor is not None):
             canvas.rectangle(gp + sum_pos(gp, self.size), fill = self.bgcolor, outline=self.outlinecolor)
 
-        t = self._get_string_to_show(canvas)
+        t = self.txt
+        if (not self._text_suitable or not self._text_suitable_checked) and not self.static_lable:
+            t = self._get_string_to_show(canvas)
+            if not self._text_suitable_checked:
+                if len(t) == len(self.txt):
+                    self._text_suitable = True
+                else:
+                    if not t.endswith("     "):
+                        t += "     "
         canvas.text(sum_pos(gp, [self.margin, self.margin]), t, fill=self.textcolor, font = self.font)
         if self._cur_pos == 0:
-            self._cur_pos = len(t) - 5
+            self._cur_pos = max(len(t) - 5, 0)
         else:
             self._cur_pos += 2
-            
+
