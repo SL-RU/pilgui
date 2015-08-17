@@ -39,19 +39,16 @@ class GUI(object):
 
 
 class Element(object):
-    def __init__(self, id, size, gui, lpos = [0,0], parent = None):
+    def __init__(self, id, size, gui, lpos = [0,0]):
         self.id = id
         self.size = size
         self.localpos = lpos
-        self.parent = parent
         self.gui = gui
-        if parent is not None:
-            self.set_parent(parent)
         
 
     id = ""
     type = "none" #element type
-    parent = None 
+    gparent = None 
     children = list()
     localpos = [0, 0] #position relative to parent
     size = [20,20]
@@ -63,30 +60,28 @@ class Element(object):
     
 
     def get_global_pos(self):
-        if self.parent is not None:
-            return [a+b for (a,b) in zip(self.parent.get_global_pos(), self.localpos)]
+        if self.gparent is not None:
+            return [a+b for (a,b) in zip(self.gparent.get_global_pos(), self.localpos)]
         else:
             return self.localpos
 
     def set_global_pos(self, pos):
-        if self.parent is not None:
-            self.localpos = [a-b for (a,b) in zip(pos,self.parent.get_global_pos())]
+        if self.gparent is not None:
+            self.localpos = [a-b for (a,b) in zip(pos,self.gparent.get_global_pos())]
         else:
             self.localpos = pos
 
     def set_size(self, sz):
         self.size = sz        
             
-    def set_parent(self, par):
-        par.add_child(self)
-            
     def add_child(self, child):
+        print("id: " + str(self.id) + " adding child " + str(child.id))
         self.children.append(child)
-        child.parent = self
+        child.gparent = self
 
     def remove_child(self, child):
         self.children.remove(child)
-        child.parent = None
+        child.gparent = None
 
     def draw(self, canvas):
         """
@@ -115,6 +110,9 @@ class Element(object):
 
 
 class RootElement(Element):
+
+    children = list()
+    
     def get_global_pos(self):
         return [0,0]
 
@@ -126,7 +124,7 @@ class RootElement(Element):
 
 
 class Lable(Element):
-    def __init__(self, id, txt, size, gui, bgcolor=None, textcolor=1, outlinecolor=None, margin=1, font = None, lpos = [0,0], parent = None, static_lable = False):
+    def __init__(self, id, txt, size, gui, bgcolor=None, textcolor=1, outlinecolor=None, margin=1, font = None, lpos = [0,0], static_lable = False):
         """
         txt - text to show
         size - max size of element. If some dimension is -1, then it will be autosetted.
@@ -136,7 +134,6 @@ class Lable(Element):
         self.id = id
         self.size = size
         self.localpos = lpos
-        self.parent = parent
         self.gui = gui
         self.bgcolor = bgcolor
         self.outlinecolor = outlinecolor
@@ -145,8 +142,6 @@ class Lable(Element):
         self.margin = margin
         self.set_text(txt)
         self.static_lable = static_lable
-        if parent is not None:
-            self.set_parent(parent)
         
 
     type = "lable" #element type
@@ -160,6 +155,7 @@ class Lable(Element):
     txt = ""
     margin = 1        #distance between border and text
     static_lable = False #do not check text suitability and do not get running strip
+    children = list()
     
     _cur_pos = 0
     _max_len = -1
@@ -308,3 +304,79 @@ class Lable(Element):
                         t += "     "
         canvas.text(sum_pos(gp, [self.margin, self.margin]), t, fill=self.textcolor, font = self.font)
 
+class ListBox(Element):
+    def __init__(self, id, size, gui, font=None, select_action=None, click_action=None, direction=1, lpos = [0,0]):
+        """
+        Listbox element. Displaying items vertically. With order by priority.
+        direction - if == -1, then up to bottom, if 1, then from bottom.
+        select_action - function exec when select changed. In arguments: this_listbox_element, selected_item_id, selected_item_text
+        click_action - function exec when select changed. In arguments: this_listbox_element, selected_item_id, selected_item_text
+        
+        """
+        self.id = id
+        self.size = size
+        self.localpos = lpos
+        self.gui = gui
+        self.font = font
+        self.select_action = select_action
+        self.click_action = click_action
+
+
+
+    font = None
+    items = list()          #list with elements in list box:
+                            #item in list is [id, element`s_text, priority]
+    select_action = None    #event function execs when select changed. In arguments: this_listbox_element, selected_item_id, selected_item_text
+    click_action = None     #event function execs when select changed. In arguments: this_listbox_element, selected_item_id, selected_item_text
+    selected_id = 0
+    children = list()
+    _updated = True         #if something updated and need redraw 
+    
+    def add_item(self, id, text, priority=0):
+        """
+        returns array [id, text, priority]
+        id must be unique! If you don't know wich to choose set None.'
+        """
+        mid = 0
+        for i in self.items:
+            if id is None:
+                if isinstance(i[0], int):
+                    mid = max(i[0], mid)
+            else:
+                if id == i[0]:
+                    raise KeyError()
+        if id is None:
+            id = mid
+
+        r = [id, text, priority]
+        self.items.append(r)
+        return r
+
+    
+
+    def draw_children(self, canvas):
+        if len(self.children) == 0:
+            lb = Lable(0, "0", [self.size[0]-2, -1], self.gui, bgcolor=0, outlinecolor=1, textcolor=1, font=self.font)
+            self.add_child(lb)
+            lb.draw(canvas)
+            h = lb.size[1]
+            count = int(self.size[1]/h)
+            dist = (self.size[1] - count * h)/ count
+            for i in range(1, count):
+                lb = Lable(i, str(i), [self.size[0]-2, -1], self.gui, outlinecolor=1, bgcolor=0, textcolor=1, font=self.font, lpos=[0, dist + lb.localpos[1] + h])
+                self.add_child(lb)
+                lb.draw(canvas)
+        else:
+            ind = 0
+            for i in self.children: 
+                if ind < len(self.items):
+                    i.set_text(self.items[ind][1])
+                else:               
+                    i.set_text(str(ind))
+                i.draw(canvas)
+                ind += 1
+
+    def draw_self(self, canvas):
+        gp = self.get_global_pos()
+        canvas.rectangle(gp + sum_pos(gp, self.size), fill = 0, outline=1)
+        canvas.rectangle([gp[0] + self.size[0]-2, gp[1]+6, gp[0] + self.size[0]-1, gp[1] + 23], fill = 0, outline=1)
