@@ -346,37 +346,84 @@ class ListBox(Element):
                 if id == i[0]:
                     raise KeyError()
         if id is None:
-            id = mid
+            id = mid + 1
 
         r = [id, text, priority]
         self.items.append(r)
         return r
 
     
-
     def draw_children(self, canvas):
         if len(self.children) == 0:
-            lb = Lable(0, "0", [self.size[0]-2, -1], self.gui, bgcolor=0, outlinecolor=1, textcolor=1, font=self.font)
+            #Create lables in listbox
+            lb = Lable(0, "0", [self.size[0]-2, -1], self.gui, bgcolor=None, margin=0, outlinecolor=None, textcolor=1, font=self.font)
             self.add_child(lb)
             lb.draw(canvas)
             h = lb.size[1]
             count = int(self.size[1]/h)
             dist = (self.size[1] - count * h)/ count
             for i in range(1, count):
-                lb = Lable(i, str(i), [self.size[0]-2, -1], self.gui, outlinecolor=1, bgcolor=0, textcolor=1, font=self.font, lpos=[0, dist + lb.localpos[1] + h])
+                lb = Lable(i, str(i), [self.size[0]-2, -1], self.gui, outlinecolor=None, bgcolor=None, textcolor=1, font=self.font, lpos=[0, dist + lb.localpos[1] + h], margin=0)
                 self.add_child(lb)
                 lb.draw(canvas)
         else:
-            ind = 0
-            for i in self.children: 
-                if ind < len(self.items):
-                    i.set_text(self.items[ind][1])
-                else:               
-                    i.set_text(str(ind))
-                i.draw(canvas)
-                ind += 1
+            #write item's text to lables and draw
+            if self.selected_id >= len(self.items):
+                self.selected_id = len(self.items) - 1
+            if self.selected_id < 0:
+                self.selected_id = 1
+                
+            if len(self.items) == 0:
+                return None
 
+            s = list()
+            self.items.sort(key=lambda x: x[2])
+            s = self.items
+            l = list()
+            l.append(self.items[self.selected_id])
+            ma = self.selected_id + 1
+            mi = self.selected_id - 1
+            #Бред
+            for i in range(1, len(self.children)):
+                if(i%2 == 1):
+                    if ma < len(s):
+                        l.append(s[ma])
+                        ma += 1
+                    else:
+                        if mi >= 0:
+                            l.insert(0, s[mi])
+                            mi -= 1
+                        else:
+                            break
+                else:
+                    if mi >= 0:
+                        l.insert(0, s[mi])
+                        mi -= 1         
+                    else:               
+                        if ma < len(s): 
+                            l.append(s[ma])
+                            ma += 1
+                        else:
+                            break
+            for i in range(len(self.children)):
+                if i < len(l):
+                    self.children[i].set_text(l[i][1])
+                    if l[i][0] == self.items[self.selected_id][0]:
+                        self.children[i].outlinecolor = 1
+                        self.children[i].bgcolor = 1
+                        self.children[i].textcolor = 0
+                    else:
+                        self.children[i].outlinecolor = 0
+                        self.children[i].bgcolor = 0
+                        self.children[i].textcolor = 1
+                else:               
+                    self.children[i].set_text("")
+                self.children[i].draw(canvas)
+
+                
     def draw_self(self, canvas):
         gp = self.get_global_pos()
+        h = min(max(int(self.size[1]*max(1, len(self.children))/max(1,len(self.items))), 11), self.size[1])
+        st = (max(self.size[1] - h, 0) * self.selected_id) / max(1, len(self.items) - 1)
         canvas.rectangle(gp + sum_pos(gp, self.size), fill = 0, outline=1)
-        canvas.rectangle([gp[0] + self.size[0]-2, gp[1]+6, gp[0] + self.size[0]-1, gp[1] + 23], fill = 0, outline=1)
+        canvas.rectangle([gp[0] + self.size[0]-2, gp[1]+st, gp[0] + self.size[0]-1, gp[1] + st + h], fill = 0, outline=1)

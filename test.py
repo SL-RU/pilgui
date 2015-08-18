@@ -3,8 +3,10 @@ import time
 from PIL import ImageFont, Image, ImageDraw
 from threading import Thread
 
+# -*- coding: utf-8 -*-
+
 gui = l.GUI()
-font = ImageFont.truetype('FreeSans.ttf', 10)
+font = ImageFont.truetype('FreeSans.ttf', 8)
 
 
 lb = l.Lable("l", "pilgui developed by SL_RU! YES! THIS THING IS WORKiNG! ДА! УРА! Даже РУССКИЙ!443321", [118, -1], gui, bgcolor=1, textcolor=0, font=font, lpos=[5,0], static_lable=False)
@@ -27,11 +29,15 @@ du.start()
 def inp():
     while True:
         i = input()
-        if i is not "q":
-            lst.add_item(None, i)
-        else:
+        if i is "q":
             gui.oled.onoff(0)
             break
+        elif i is "8":
+            lst.selected_id += 1
+        elif i is "2":
+            lst.selected_id = max(0, lst.selected_id - 1)
+        else:  
+            lst.add_item(None, i)
 
 di = Thread(target=inp)
 di.setDaemon(True)
