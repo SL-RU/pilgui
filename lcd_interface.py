@@ -583,6 +583,7 @@ class ImageView(Element):
         canvas - ImageDraw element
         """    
         canvas.bitmap(self.localpos, self.image, fill=1)
+<<<<<<< HEAD
 
 
 class ImageIndicator(Element):
@@ -636,3 +637,5 @@ class ImageIndicator(Element):
         """    
         if self.state in self.imagestates.keys():
             canvas.bitmap(self.localpos, self.imagestates[self.state], fill=1)
+=======
+>>>>>>> 12e28094e244cb461d035378b81b31fbca4a2f17
